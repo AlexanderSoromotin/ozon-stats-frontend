@@ -86,6 +86,10 @@ export default function ProductionPage() {
 
   // close shift dialog
   const [closeShiftDialog, setCloseShiftDialog] = useState(false)
+  const [newJobDialog, setNewJobDialog] = useState(false)
+  const [newJobForm, setNewJobForm] = useState<{ sku_id: number | ''; printer_id: number | ''; qty: number; scheduled_start: string }>({
+    sku_id: '', printer_id: '', qty: 1, scheduled_start: '',
+  })
   const [shiftNotes, setShiftNotes] = useState('')
 
   // complete print job dialog
@@ -118,6 +122,31 @@ export default function ProductionPage() {
   const tasks = tasksData ?? []
   const printJobs = tasks.filter(t => t.type === 'print_job') as PrintJob[]
   const packingTasks = tasks.filter(t => t.type === 'packing_task') as PackingTask[]
+
+  const { data: skusForJob } = useQuery({
+    queryKey: ['skus', 'all-active'],
+    queryFn: () => api.get('/skus', { params: { per_page: 200, status: 'ACTIVE' } }).then(r => r.data.data as Array<{ id: number; article: string; name: string }>),
+  })
+  const { data: printersForJob } = useQuery({
+    queryKey: ['printers'],
+    queryFn: () => api.get('/printers').then(r => r.data.data as Array<{ id: number; name: string }>),
+  })
+
+  const createJobMutation = useMutation({
+    mutationFn: () => api.post('/print-jobs', {
+      sku_id: newJobForm.sku_id,
+      printer_id: newJobForm.printer_id,
+      qty: newJobForm.qty,
+      shift_id: shift?.id,
+      scheduled_start: newJobForm.scheduled_start || undefined,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['shift-tasks'] })
+      setNewJobDialog(false)
+      setNewJobForm({ sku_id: '', printer_id: '', qty: 1, scheduled_start: '' })
+    },
+    onError: (e: any) => setActionError(e.response?.data?.message ?? 'Ошибка'),
+  })
 
   // ── Mutations ──
   const openShiftMutation = useMutation({
@@ -208,9 +237,14 @@ export default function ProductionPage() {
           </Button>
         )}
         {shift && (
-          <Button variant="outline" onClick={() => { setActionError(''); setCloseShiftDialog(true) }} className="gap-2">
-            <XCircle className="size-4" /> Закрыть смену
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => { setActionError(''); setNewJobDialog(true) }} className="gap-2">
+              <Play className="size-4" /> Добавить печать
+            </Button>
+            <Button variant="outline" onClick={() => { setActionError(''); setCloseShiftDialog(true) }} className="gap-2">
+              <XCircle className="size-4" /> Закрыть смену
+            </Button>
+          </div>
         )}
       </div>
 
@@ -462,6 +496,59 @@ export default function ProductionPage() {
           <Button variant="outline" onClick={() => setCompletePackDialog(null)}>Отмена</Button>
           <Button disabled={!packActualQty || completePackPending} onClick={submitCompletePack}>
             {completePackPending ? 'Сохранение...' : 'Завершить'}
+          </Button>
+        </DialogFooter>
+      </Dialog>
+
+      {/* New print job dialog */}
+      <Dialog open={newJobDialog} onClose={() => setNewJobDialog(false)}>
+        <DialogHeader>
+          <DialogTitle>Добавить задание на печать</DialogTitle>
+          <DialogClose onClose={() => setNewJobDialog(false)} />
+        </DialogHeader>
+        <DialogContent>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5 col-span-2">
+              <Label>SKU</Label>
+              <select
+                value={newJobForm.sku_id}
+                onChange={e => setNewJobForm(f => ({ ...f, sku_id: e.target.value ? Number(e.target.value) : '' }))}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+              >
+                <option value="">—</option>
+                {skusForJob?.map(s => <option key={s.id} value={s.id}>{s.article} — {s.name}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Принтер</Label>
+              <select
+                value={newJobForm.printer_id}
+                onChange={e => setNewJobForm(f => ({ ...f, printer_id: e.target.value ? Number(e.target.value) : '' }))}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+              >
+                <option value="">—</option>
+                {printersForJob?.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Количество</Label>
+              <Input type="number" min={1} value={newJobForm.qty} onChange={e => setNewJobForm(f => ({ ...f, qty: Number(e.target.value) }))} />
+            </div>
+            <div className="flex flex-col gap-1.5 col-span-2">
+              <Label>Плановый старт (опционально)</Label>
+              <Input type="datetime-local" value={newJobForm.scheduled_start} onChange={e => setNewJobForm(f => ({ ...f, scheduled_start: e.target.value }))} />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">Длительность рассчитается автоматически по профилю печати (SKU × Принтер).</p>
+          {actionError && <p className="text-sm text-destructive mt-2">{actionError}</p>}
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setNewJobDialog(false)}>Отмена</Button>
+          <Button
+            disabled={!newJobForm.sku_id || !newJobForm.printer_id || !newJobForm.qty || createJobMutation.isPending}
+            onClick={() => createJobMutation.mutate()}
+          >
+            {createJobMutation.isPending ? 'Создание...' : 'Создать'}
           </Button>
         </DialogFooter>
       </Dialog>
