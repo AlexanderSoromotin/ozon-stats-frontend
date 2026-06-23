@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
@@ -17,14 +17,7 @@ interface Sku {
   name: string
   status: 'ACTIVE' | 'PAUSED' | 'ARCHIVED'
   channel_strategy: 'FBO' | 'FBS'
-  item_volume_cm3: number
-  default_cover_days: number
   sales_30d?: { units: number; revenue_minor: number }
-}
-
-const STATUS_LABEL: Record<string, string> = { ACTIVE: 'Активен', PAUSED: 'Пауза', ARCHIVED: 'Архив' }
-const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'secondary'> = {
-  ACTIVE: 'success', PAUSED: 'warning', ARCHIVED: 'secondary',
 }
 
 export default function SkusPage() {
@@ -39,6 +32,11 @@ export default function SkusPage() {
 
   const skus: Sku[] = data?.data ?? []
   const meta = data?.meta
+
+  const sortedSkus = useMemo(
+    () => [...skus].sort((a, b) => (b.sales_30d?.revenue_minor ?? 0) - (a.sales_30d?.revenue_minor ?? 0)),
+    [skus],
+  )
 
   return (
     <div className="flex flex-col gap-6">
@@ -70,33 +68,25 @@ export default function SkusPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Артикул</TableHead>
-              <TableHead>Название</TableHead>
-              <TableHead>Статус</TableHead>
               <TableHead>Канал</TableHead>
               <TableHead>Ozon SKU ID</TableHead>
-              <TableHead>Объём, см³</TableHead>
-              <TableHead>Покрытие, дн.</TableHead>
-              <TableHead className="text-right">Продажи 30д</TableHead>
+              <TableHead className="text-right">Продажи 30д ↓</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (
-              <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-12">Загрузка...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-12">Загрузка...</TableCell></TableRow>
             )}
-            {!isLoading && skus.length === 0 && (
-              <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-12">Ничего не найдено</TableCell></TableRow>
+            {!isLoading && sortedSkus.length === 0 && (
+              <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-12">Ничего не найдено</TableCell></TableRow>
             )}
-            {skus.map(sku => (
+            {sortedSkus.map(sku => (
               <TableRow key={sku.id}>
-                <TableCell className="font-mono text-xs">{sku.article}</TableCell>
                 <TableCell>
-                  <Link to={`/skus/${sku.id}`} className="font-medium hover:underline underline-offset-4">{sku.name}</Link>
+                  <Link to={`/skus/${sku.id}`} className="font-mono text-xs hover:underline underline-offset-4">{sku.article}</Link>
                 </TableCell>
-                <TableCell><Badge variant={STATUS_VARIANT[sku.status]}>{STATUS_LABEL[sku.status]}</Badge></TableCell>
                 <TableCell><Badge variant="outline">{sku.channel_strategy}</Badge></TableCell>
                 <TableCell className="text-muted-foreground text-xs">{sku.ozon_sku_id ?? '—'}</TableCell>
-                <TableCell>{sku.item_volume_cm3}</TableCell>
-                <TableCell>{sku.default_cover_days}</TableCell>
                 <TableCell className="text-right">
                   {sku.sales_30d ? (
                     <div>
@@ -121,7 +111,6 @@ export default function SkusPage() {
           </div>
         </div>
       )}
-
     </div>
   )
 }

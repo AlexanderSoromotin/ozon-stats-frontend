@@ -4,10 +4,9 @@ import { Link } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { fmtMoney, fmtNum, fmtPct, daysAgoIso, todayIso } from '@/lib/format'
+import PeriodPicker, { presetPeriod, type PeriodValue } from '@/components/PeriodPicker'
+import { fmtMoney, fmtNum, fmtPct } from '@/lib/format'
 import { Package, TrendingUp, TrendingDown, AlertTriangle, Boxes, MapPin, Truck, ChevronRight } from 'lucide-react'
 
 const GLOBAL_WIDGETS = [
@@ -51,8 +50,8 @@ function Stat({ icon: Icon, label, value, sub, trend, to }: {
 
 export default function DashboardPage() {
   const { user } = useAuth()
-  const [from, setFrom] = useState(daysAgoIso(30))
-  const [to, setTo] = useState(todayIso())
+  const [period, setPeriod] = useState<PeriodValue>(() => presetPeriod('month'))
+  const { from, to } = period
 
   const { data: globalData } = useQuery({
     queryKey: ['analytics', 'global'],
@@ -74,16 +73,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Дашборд</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Добро пожаловать, {user?.name}</p>
         </div>
-        <div className="flex items-end gap-2">
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">С</Label>
-            <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="w-40" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">По</Label>
-            <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="w-40" />
-          </div>
-        </div>
+        <PeriodPicker value={period} onChange={setPeriod} />
       </div>
 
       {/* Global stats */}
