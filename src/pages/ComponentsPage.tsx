@@ -5,39 +5,37 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
 import { Select } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Plus, Search, Pencil, Trash2, AlertTriangle } from 'lucide-react'
+import { fmtNum } from '@/lib/format'
 
 interface Component {
   id: number
-  type: 'PLASTIC' | 'PACKAGING' | 'OTHER'
   name: string
-  color: string | null
   unit: 'g' | 'ml' | 'pcs' | 'm'
   current_stock: number
   min_level: number
   lead_time_days: number
+  purchase_price: number | null
+  purchase_qty: number | null
+  price_per_unit: number | null
+  supplier_id: number | null
 }
 
-const TYPE_LABEL: Record<string, string> = { PLASTIC: 'Пластик', PACKAGING: 'Упаковка', OTHER: 'Прочее' }
-const TYPE_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
-  PLASTIC: 'default', PACKAGING: 'secondary', OTHER: 'outline',
-}
 const UNIT_LABEL: Record<string, string> = { g: 'г', ml: 'мл', pcs: 'шт', m: 'м' }
 
 const EMPTY: Partial<Component> = {
-  type: 'PLASTIC', name: '', color: '', unit: 'g',
+  name: '', unit: 'g',
   current_stock: 0, min_level: 0, lead_time_days: 7,
+  purchase_price: null, purchase_qty: null,
 }
 
 export default function ComponentsPage() {
   const { isOwner } = useAuth()
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
-  const [typeFilter, setTypeFilter] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [form, setForm] = useState<Partial<Component>>(EMPTY)
@@ -45,9 +43,9 @@ export default function ComponentsPage() {
   const [formError, setFormError] = useState('')
 
   const { data, isLoading } = useQuery({
-    queryKey: ['components', search, typeFilter],
+    queryKey: ['components', search],
     queryFn: () => api.get('/components', {
-      params: { search: search || undefined, type: typeFilter || undefined },
+      params: { search: search || undefined },
     }).then(r => r.data),
   })
 
@@ -90,13 +88,15 @@ export default function ComponentsPage() {
         )}
       </div>
 
-      {/* Low stock alert */}
+      {/* Low stock alerts */}
       {lowStock.length > 0 && (
-        <div className="flex items-start gap-3 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
-          <AlertTriangle className="size-4 mt-0.5 shrink-0" />
-          <span>
-            Нехватка материалов: <strong>{lowStock.map(c => c.name).join(', ')}</strong>
-          </span>
+        <div className="flex flex-col gap-2">
+          {lowStock.map(c => (
+            <div key={c.id} className="flex items-center gap-3 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+              <AlertTriangle className="size-4 shrink-0" />
+              <span>Нехватка: <strong>{c.name}</strong> — остаток {c.current_stock.toLocaleString('ru')} {UNIT_LABEL[c.unit]} (мин. {c.min_level.toLocaleString('ru')})</span>
+            </div>
+          ))}
         </div>
       )}
 
@@ -111,12 +111,6 @@ export default function ComponentsPage() {
             className="pl-9"
           />
         </div>
-        <Select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="w-40">
-          <option value="">Все типы</option>
-          <option value="PLASTIC">Пластик</option>
-          <option value="PACKAGING">Упаковка</option>
-          <option value="OTHER">Прочее</option>
-        </Select>
       </div>
 
       {/* Table */}
@@ -125,11 +119,10 @@ export default function ComponentsPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Название</TableHead>
-              <TableHead>Тип</TableHead>
-              <TableHead>Цвет</TableHead>
               <TableHead>Ед.</TableHead>
               <TableHead>Остаток</TableHead>
               <TableHead>Мин. уровень</TableHead>
+              <TableHead>Цена за ед.</TableHead>
               <TableHead>Срок поставки, дн.</TableHead>
               {isOwner && <TableHead className="w-20" />}
             </TableRow>
@@ -137,12 +130,12 @@ export default function ComponentsPage() {
           <TableBody>
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground py-12">Загрузка...</TableCell>
+                <TableCell colSpan={7} className="text-center text-muted-foreground py-12">Загрузка...</TableCell>
               </TableRow>
             )}
             {!isLoading && components.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground py-12">Ничего не найдено</TableCell>
+                <TableCell colSpan={7} className="text-center text-muted-foreground py-12">Ничего не найдено</TableCell>
               </TableRow>
             )}
             {components.map(c => {
@@ -150,10 +143,6 @@ export default function ComponentsPage() {
               return (
                 <TableRow key={c.id}>
                   <TableCell className="font-medium">{c.name}</TableCell>
-                  <TableCell>
-                    <Badge variant={TYPE_VARIANT[c.type]}>{TYPE_LABEL[c.type]}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{c.color || '—'}</TableCell>
                   <TableCell className="text-muted-foreground">{UNIT_LABEL[c.unit]}</TableCell>
                   <TableCell>
                     <span className={isLow ? 'text-destructive font-semibold flex items-center gap-1' : ''}>
@@ -162,6 +151,9 @@ export default function ComponentsPage() {
                     </span>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{c.min_level.toLocaleString('ru')}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {c.price_per_unit != null ? `${fmtNum(c.price_per_unit)} ₽/${UNIT_LABEL[c.unit]}` : '—'}
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{c.lead_time_days}</TableCell>
                   {isOwner && (
                     <TableCell>
@@ -195,14 +187,6 @@ export default function ComponentsPage() {
               <Input value={form.name ?? ''} onChange={set('name')} placeholder="PLA Black 1kg" />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label>Тип</Label>
-              <Select value={form.type ?? 'PLASTIC'} onChange={set('type')}>
-                <option value="PLASTIC">Пластик</option>
-                <option value="PACKAGING">Упаковка</option>
-                <option value="OTHER">Прочее</option>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
               <Label>Единица измерения</Label>
               <Select value={form.unit ?? 'g'} onChange={set('unit')}>
                 <option value="g">Граммы (г)</option>
@@ -210,10 +194,6 @@ export default function ComponentsPage() {
                 <option value="pcs">Штуки (шт)</option>
                 <option value="m">Метры (м)</option>
               </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Цвет</Label>
-              <Input value={form.color ?? ''} onChange={set('color')} placeholder="black" />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>Срок поставки, дней</Label>
@@ -226,6 +206,14 @@ export default function ComponentsPage() {
             <div className="flex flex-col gap-1.5">
               <Label>Минимальный уровень</Label>
               <Input value={form.min_level ?? ''} onChange={set('min_level')} type="number" min={0} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Цена закупки, ₽</Label>
+              <Input value={form.purchase_price ?? ''} onChange={e => setForm(f => ({ ...f, purchase_price: e.target.value ? Number(e.target.value) : null }))} type="number" min={0} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Объём закупки ({UNIT_LABEL[form.unit ?? 'g']})</Label>
+              <Input value={form.purchase_qty ?? ''} onChange={e => setForm(f => ({ ...f, purchase_qty: e.target.value ? Number(e.target.value) : null }))} type="number" min={0} />
             </div>
           </div>
           {formError && <p className="text-sm text-destructive mt-3">{formError}</p>}

@@ -7,16 +7,17 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import PeriodPicker, { presetPeriod, type PeriodValue } from '@/components/PeriodPicker'
 import { Calculator, FileText, TrendingUp, AlertTriangle } from 'lucide-react'
-import { fmtMoney, fmtDate, daysAgoIso, todayIso } from '@/lib/format'
+import { fmtMoney, fmtDate } from '@/lib/format'
 
 const TAX_LABEL: Record<string, string> = { IP_USN6: 'ИП УСН 6%', NPD: 'НПД' }
 
 // ─── Calculate / Payouts ─────────────────────────────────────────────────────
 
 function PayoutsTab() {
-  const [from, setFrom] = useState(daysAgoIso(30))
-  const [to, setTo] = useState(todayIso())
+  const [period, setPeriod] = useState<PeriodValue>(() => presetPeriod('month'))
+  const { from, to } = period
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState('')
   const [createdPayouts, setCreatedPayouts] = useState<any[] | null>(null)
@@ -46,21 +47,16 @@ function PayoutsTab() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="rounded-xl border bg-card p-5 flex items-end gap-3 flex-wrap">
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">С</Label>
-          <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="w-40" />
+      <div className="rounded-xl border bg-card p-5 flex items-center gap-3 flex-wrap">
+        <PeriodPicker value={period} onChange={setPeriod} />
+        <div className="flex items-center gap-2 ml-auto">
+          <Button onClick={() => calc.mutate()} disabled={calc.isPending} variant="outline" className="gap-2">
+            <Calculator className="size-4" /> {calc.isPending ? 'Расчёт...' : 'Рассчитать'}
+          </Button>
+          <Button onClick={() => payouts.mutate()} disabled={payouts.isPending} className="gap-2">
+            <FileText className="size-4" /> {payouts.isPending ? 'Создание...' : 'Создать выплаты'}
+          </Button>
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">По</Label>
-          <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="w-40" />
-        </div>
-        <Button onClick={() => calc.mutate()} disabled={calc.isPending} variant="outline" className="gap-2">
-          <Calculator className="size-4" /> {calc.isPending ? 'Расчёт...' : 'Рассчитать'}
-        </Button>
-        <Button onClick={() => payouts.mutate()} disabled={payouts.isPending} className="gap-2">
-          <FileText className="size-4" /> {payouts.isPending ? 'Создание...' : 'Создать выплаты'}
-        </Button>
       </div>
 
       {error && (

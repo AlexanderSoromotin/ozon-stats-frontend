@@ -11,15 +11,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Printer, Plus, Pencil, Trash2 } from 'lucide-react'
 import { fmtDateTime, fmtNum } from '@/lib/format'
+import { SkeletonTableRows } from '@/components/ui/skeleton'
 
 interface PrinterDev {
   id: number
   model: string
   name: string
-  build_volume_cm3: number | null
+  build_area_cm2: number | null
   status: 'IDLE' | 'BUSY' | 'MAINTENANCE'
   busy_until: string | null
   total_print_hours: number
+  cost: number | null
+  maintenance_interval_hours: number | null
+  service_life_hours: number | null
+  power_consumption_kwh: number | null
+  electricity_price: number | null
 }
 
 const STATUS_LABEL: Record<string, string> = { IDLE: 'Свободен', BUSY: 'Печатает', MAINTENANCE: 'Обслуживание' }
@@ -27,7 +33,11 @@ const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'secondary'> = {
   IDLE: 'success', BUSY: 'warning', MAINTENANCE: 'secondary',
 }
 
-const EMPTY: Partial<PrinterDev> = { model: '', name: '', build_volume_cm3: 0, status: 'IDLE' }
+const EMPTY: Partial<PrinterDev> = {
+  model: '', name: '', build_area_cm2: 0, status: 'IDLE',
+  cost: null, maintenance_interval_hours: null, service_life_hours: null,
+  power_consumption_kwh: null, electricity_price: null,
+}
 
 export default function PrintersPage() {
   const { isOwner } = useAuth()
@@ -87,15 +97,13 @@ export default function PrintersPage() {
               <TableHead>Модель</TableHead>
               <TableHead>Статус</TableHead>
               <TableHead>Занят до</TableHead>
-              <TableHead>Объём, см³</TableHead>
+              <TableHead>Площадь стола, см²</TableHead>
               <TableHead>Часов печати</TableHead>
               {isOwner && <TableHead className="w-20" />}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-12">Загрузка...</TableCell></TableRow>
-            )}
+            {isLoading && <SkeletonTableRows cols={7} rows={4} />}
             {!isLoading && printers.length === 0 && (
               <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-12">Нет данных</TableCell></TableRow>
             )}
@@ -110,7 +118,7 @@ export default function PrintersPage() {
                 <TableCell className="text-muted-foreground">{p.model}</TableCell>
                 <TableCell><Badge variant={STATUS_VARIANT[p.status]}>{STATUS_LABEL[p.status]}</Badge></TableCell>
                 <TableCell className="text-muted-foreground">{fmtDateTime(p.busy_until)}</TableCell>
-                <TableCell className="text-muted-foreground">{fmtNum(p.build_volume_cm3)}</TableCell>
+                <TableCell className="text-muted-foreground">{fmtNum(p.build_area_cm2)}</TableCell>
                 <TableCell>{p.total_print_hours.toLocaleString('ru')}</TableCell>
                 {isOwner && (
                   <TableCell>
@@ -145,8 +153,8 @@ export default function PrintersPage() {
               <Input value={form.model ?? ''} onChange={set('model')} placeholder="Creality K1 SE" />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label>Объём печати, см³</Label>
-              <Input type="number" min={0} value={form.build_volume_cm3 ?? ''} onChange={set('build_volume_cm3')} />
+              <Label>Площадь стола, см²</Label>
+              <Input type="number" min={0} value={form.build_area_cm2 ?? ''} onChange={set('build_area_cm2')} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>Статус</Label>
@@ -155,6 +163,26 @@ export default function PrintersPage() {
                 <option value="BUSY">Печатает</option>
                 <option value="MAINTENANCE">Обслуживание</option>
               </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Стоимость принтера, ₽</Label>
+              <Input type="number" min={0} value={form.cost ?? ''} onChange={e => setForm(f => ({ ...f, cost: e.target.value ? Number(e.target.value) : null }))} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Интервал обслуж., ч</Label>
+              <Input type="number" min={0} value={form.maintenance_interval_hours ?? ''} onChange={e => setForm(f => ({ ...f, maintenance_interval_hours: e.target.value ? Number(e.target.value) : null }))} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Срок эксплуатации, ч</Label>
+              <Input type="number" min={0} value={form.service_life_hours ?? ''} onChange={e => setForm(f => ({ ...f, service_life_hours: e.target.value ? Number(e.target.value) : null }))} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Расход энергии, кВт·ч</Label>
+              <Input type="number" min={0} step="0.01" value={form.power_consumption_kwh ?? ''} onChange={e => setForm(f => ({ ...f, power_consumption_kwh: e.target.value ? Number(e.target.value) : null }))} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Цена электр., ₽/кВт·ч</Label>
+              <Input type="number" min={0} step="0.01" value={form.electricity_price ?? ''} onChange={e => setForm(f => ({ ...f, electricity_price: e.target.value ? Number(e.target.value) : null }))} />
             </div>
           </div>
           {error && <p className="text-sm text-destructive mt-3">{error}</p>}

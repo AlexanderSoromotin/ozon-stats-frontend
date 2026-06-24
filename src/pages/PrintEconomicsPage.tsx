@@ -3,11 +3,10 @@ import { Link } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import PeriodPicker, { presetPeriod, type PeriodValue } from '@/components/PeriodPicker'
 import { Clock, Calculator } from 'lucide-react'
-import { daysAgoIso, todayIso, fmtNum } from '@/lib/format'
+import { fmtNum } from '@/lib/format'
 
 interface Row {
   sku_id: number; article: string; name: string
@@ -18,11 +17,10 @@ interface Row {
 }
 
 export default function PrintEconomicsPage() {
-  const [from, setFrom] = useState(daysAgoIso(30))
-  const [to, setTo] = useState(todayIso())
+  const [period, setPeriod] = useState<PeriodValue>(() => presetPeriod('month'))
 
   const calc = useMutation({
-    mutationFn: () => api.post('/analytics/print-hour-economics', { from, to }).then(r => r.data.data as Row[]),
+    mutationFn: () => api.post('/analytics/print-hour-economics', { from: period.from, to: period.to }).then(r => r.data.data as Row[]),
   })
 
   const rows = calc.data ?? []
@@ -34,16 +32,9 @@ export default function PrintEconomicsPage() {
         <p className="text-sm text-muted-foreground mt-0.5">Приоритизация SKU по экономике печати</p>
       </div>
 
-      <div className="rounded-xl border bg-card p-5 flex items-end gap-3 flex-wrap">
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">С</Label>
-          <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="w-40" />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">По</Label>
-          <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="w-40" />
-        </div>
-        <Button onClick={() => calc.mutate()} disabled={calc.isPending} className="gap-2">
+      <div className="rounded-xl border bg-card p-5 flex items-center gap-3 flex-wrap">
+        <PeriodPicker value={period} onChange={setPeriod} />
+        <Button onClick={() => calc.mutate()} disabled={calc.isPending} className="gap-2 ml-auto">
           <Calculator className="size-4" /> {calc.isPending ? 'Расчёт...' : 'Рассчитать'}
         </Button>
       </div>
@@ -74,7 +65,6 @@ export default function PrintEconomicsPage() {
                   <TableCell>
                     <Link to={`/skus/${r.sku_id}`} className="hover:underline">
                       <span className="font-mono text-xs text-muted-foreground">{r.article}</span>{' '}
-                      <span className="text-sm">{r.name}</span>
                     </Link>
                   </TableCell>
                   <TableCell className="text-right">{fmtNum(r.avg_sale_price)} ₽</TableCell>

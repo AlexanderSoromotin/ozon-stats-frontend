@@ -10,7 +10,9 @@ import { Select } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
-import { fmtMoney, daysAgoIso, todayIso } from '@/lib/format'
+import PeriodPicker, { presetPeriod, type PeriodValue } from '@/components/PeriodPicker'
+import { fmtMoney, todayIso } from '@/lib/format'
+import { SkeletonTableRows } from '@/components/ui/skeleton'
 
 interface Expense {
   id: number; month: string; type: string
@@ -29,8 +31,8 @@ const EMPTY: Partial<Expense> & { amount_rub?: number } = {
 export default function ExpensesPage() {
   const { isOwner } = useAuth()
   const qc = useQueryClient()
-  const [from, setFrom] = useState(daysAgoIso(90))
-  const [to, setTo] = useState(todayIso())
+  const [period, setPeriod] = useState<PeriodValue>(() => presetPeriod('month'))
+  const { from, to } = period
   const [typeFilter, setTypeFilter] = useState('')
   const [dialog, setDialog] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
@@ -76,15 +78,8 @@ export default function ExpensesPage() {
         {isOwner && <Button onClick={openCreate} className="gap-2"><Plus className="size-4" /> Добавить расход</Button>}
       </div>
 
-      <div className="rounded-xl border bg-card p-5 flex items-end gap-3 flex-wrap">
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">С</Label>
-          <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="w-40" />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">По</Label>
-          <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="w-40" />
-        </div>
+      <div className="rounded-xl border bg-card p-5 flex items-center gap-3 flex-wrap">
+        <PeriodPicker value={period} onChange={setPeriod} />
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">Тип</Label>
           <Select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="w-44">
@@ -110,7 +105,7 @@ export default function ExpensesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-12">Загрузка...</TableCell></TableRow>}
+            {isLoading && <SkeletonTableRows cols={5} rows={5} />}
             {!isLoading && expenses.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-12">Нет расходов за период</TableCell></TableRow>}
             {expenses.map(e => (
               <TableRow key={e.id}>
