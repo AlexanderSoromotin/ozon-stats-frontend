@@ -83,8 +83,8 @@ export default function ProductionPage() {
   // shift open dialog
   const [openShiftDialog, setOpenShiftDialog] = useState(false)
   const [plannedEnd, setPlannedEnd] = useState('')
-  const [endHour, setEndHour] = useState(18)
-  const [endMinute, setEndMinute] = useState(0)
+  // const [endHour, setEndHour] = useState(18)
+  // const [endMinute, setEndMinute] = useState(0)
 
   // close shift dialog
   const [closeShiftDialog, setCloseShiftDialog] = useState(false)
