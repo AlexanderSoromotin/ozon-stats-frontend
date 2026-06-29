@@ -1,120 +1,18 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Eye, EyeOff, BarChart3 } from 'lucide-react'
-
-interface Particle {
-  x: number
-  y: number
-  vx: number
-  vy: number
-  radius: number
-  opacity: number
-}
-
-function ParticlesCanvas() {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const particlesRef = useRef<Particle[]>([])
-  const animationRef = useRef<number>(0)
-  const mouseRef = useRef({ x: -1000, y: -1000 })
-
-  const initParticles = useCallback((w: number, h: number) => {
-    const count = Math.floor((w * h) / 8000)
-    particlesRef.current = Array.from({ length: Math.min(count, 150) }, () => ({
-      x: Math.random() * w,
-      y: Math.random() * h,
-      vx: (Math.random() - 0.5) * 0.6,
-      vy: (Math.random() - 0.5) * 0.6,
-      radius: Math.random() * 2 + 1,
-      opacity: Math.random() * 0.4 + 0.1,
-    }))
-  }, [])
-
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const resize = () => {
-      canvas.width = window.innerWidth
-      canvas.height = window.innerHeight
-      initParticles(canvas.width, canvas.height)
-    }
-    resize()
-    window.addEventListener('resize', resize)
-
-    const onMouseMove = (e: MouseEvent) => {
-      mouseRef.current = { x: e.clientX, y: e.clientY }
-    }
-    window.addEventListener('mousemove', onMouseMove)
-
-    const animate = () => {
-      const { width: w, height: h } = canvas
-      ctx.clearRect(0, 0, w, h)
-      const particles = particlesRef.current
-      const mouse = mouseRef.current
-
-      for (const p of particles) {
-        p.x += p.vx
-        p.y += p.vy
-        if (p.x < 0) p.x = w
-        if (p.x > w) p.x = 0
-        if (p.y < 0) p.y = h
-        if (p.y > h) p.y = 0
-
-        const dx = mouse.x - p.x
-        const dy = mouse.y - p.y
-        const dist = Math.sqrt(dx * dx + dy * dy)
-        if (dist < 150) {
-          p.vx -= dx * 0.00005
-          p.vy -= dy * 0.00005
-        }
-
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(160, 160, 160, ${p.opacity})`
-        ctx.fill()
-      }
-
-      const connectionDist = 120
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x
-          const dy = particles[i].y - particles[j].y
-          const dist = Math.sqrt(dx * dx + dy * dy)
-          if (dist < connectionDist) {
-            ctx.beginPath()
-            ctx.moveTo(particles[i].x, particles[i].y)
-            ctx.lineTo(particles[j].x, particles[j].y)
-            ctx.strokeStyle = `rgba(160, 160, 160, ${0.12 * (1 - dist / connectionDist)})`
-            ctx.lineWidth = 0.5
-            ctx.stroke()
-          }
-        }
-      }
-
-      animationRef.current = requestAnimationFrame(animate)
-    }
-    animate()
-
-    return () => {
-      cancelAnimationFrame(animationRef.current)
-      window.removeEventListener('resize', resize)
-      window.removeEventListener('mousemove', onMouseMove)
-    }
-  }, [initParticles])
-
-  return (
-    <canvas
-      ref={canvasRef}
-      className="fixed inset-0 pointer-events-none"
-      style={{ zIndex: 0 }}
-    />
-  )
-}
+import {
+  Eye,
+  EyeOff,
+  ArrowRight,
+  TrendingUp,
+  Package,
+  Factory,
+  Sparkles,
+  AlertCircle,
+} from 'lucide-react'
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -145,113 +43,259 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950">
-      <ParticlesCanvas />
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 grid lg:grid-cols-[1.1fr_1fr] overflow-hidden">
+      {/* LEFT — brand / product preview */}
+      <aside className="relative hidden lg:flex flex-col justify-between p-10 xl:p-14 overflow-hidden bg-neutral-950 text-neutral-100">
+        {/* mesh gradient */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute -top-32 -left-24 size-[480px] rounded-full bg-gradient-to-br from-indigo-500/40 via-fuchsia-500/20 to-transparent blur-3xl" />
+          <div className="absolute top-1/3 -right-24 size-[420px] rounded-full bg-gradient-to-tr from-emerald-400/30 via-cyan-500/20 to-transparent blur-3xl" />
+          <div className="absolute -bottom-32 left-1/4 size-[520px] rounded-full bg-gradient-to-tr from-amber-400/20 via-rose-500/20 to-transparent blur-3xl" />
+        </div>
+        {/* subtle grid */}
+        <div
+          className="absolute inset-0 opacity-[0.07] pointer-events-none"
+          style={{
+            backgroundImage:
+              'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)',
+            backgroundSize: '48px 48px',
+            maskImage: 'radial-gradient(ellipse at center, black 40%, transparent 80%)',
+          }}
+        />
 
-      <div
-        className="absolute top-1/4 left-1/4 w-96 h-96 bg-neutral-500/5 rounded-full blur-3xl"
-        style={{ animation: 'float 8s ease-in-out infinite' }}
-      />
-      <div
-        className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-neutral-400/5 rounded-full blur-3xl"
-        style={{ animation: 'float 8s ease-in-out infinite 4s' }}
-      />
-
-      <div
-        className={`relative z-10 flex flex-col items-center gap-8 w-full max-w-sm px-6 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
-      >
-        <div className="flex flex-col items-center gap-3 text-center">
-          <div className="size-14 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10 flex items-center justify-center mb-1">
-            <BarChart3 className="size-7 text-neutral-300" />
+        {/* logo */}
+        <div className="relative flex items-center gap-2.5 text-sm font-medium">
+          <div className="size-8 rounded-lg bg-white text-neutral-950 flex items-center justify-center font-bold">
+            O
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">
-            Ozon Stats
-          </h1>
-          <p className="text-sm text-neutral-500">
-            Управление производством и аналитика
-          </p>
+          <span className="tracking-tight">Ozon Stats</span>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="email" className="text-xs font-medium text-neutral-500 pl-1">
-              Email
-            </label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="user@example.com"
-              required
-              className="h-11 bg-white/5 border-white/10 text-white placeholder:text-neutral-600 focus:border-neutral-400/50 focus:ring-neutral-400/20 rounded-xl transition-colors"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="password" className="text-xs font-medium text-neutral-500 pl-1">
-              Пароль
-            </label>
-            <div className="relative">
-              <Input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="h-11 pr-10 bg-white/5 border-white/10 text-white placeholder:text-neutral-600 focus:border-neutral-400/50 focus:ring-neutral-400/20 rounded-xl transition-colors"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((s) => !s)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-neutral-600 hover:text-neutral-300 hover:bg-white/5 transition-colors"
-                tabIndex={-1}
-                aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
-              >
-                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-              </button>
+        {/* hero copy + bento preview */}
+        <div className="relative flex flex-col gap-10">
+          <div className="space-y-4 max-w-md">
+            <div className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-white/10 border border-white/15 backdrop-blur-sm">
+              <Sparkles className="size-3" />
+              Производство под контролем
             </div>
-          </div>
-
-          {error && (
-            <div className="flex items-center gap-2 text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-xl px-3 py-2">
-              <svg className="size-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-              {error}
-            </div>
-          )}
-
-          <Button
-            type="submit"
-            disabled={loading}
-            className="w-full h-11 mt-1 bg-white text-neutral-900 font-medium rounded-xl transition-all duration-200 hover:bg-neutral-200 hover:shadow-lg hover:shadow-white/5 disabled:opacity-50 cursor-pointer"
-          >
-            {loading ? (
-              <span className="flex items-center gap-2">
-                <svg className="size-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                Вход...
+            <h2 className="text-4xl xl:text-5xl font-semibold tracking-tight leading-[1.05]">
+              Аналитика, склад и&nbsp;поставки —{' '}
+              <span className="bg-gradient-to-r from-white via-neutral-300 to-neutral-500 bg-clip-text text-transparent">
+                в одном месте.
               </span>
-            ) : (
-              'Войти'
-            )}
-          </Button>
-        </form>
+            </h2>
+            <p className="text-neutral-400 text-base leading-relaxed">
+              Планируйте поставки на FBO, рассчитывайте спрос и&nbsp;управляйте
+              производством без таблиц и&nbsp;ручных пересчётов.
+            </p>
+          </div>
 
-        <p className="text-xs text-neutral-700">
+          {/* bento mock */}
+          <div className="grid grid-cols-3 gap-3 max-w-md">
+            <MockCard
+              icon={<TrendingUp className="size-4" />}
+              label="Выручка"
+              value="₽2.4M"
+              delta="+12%"
+              className="col-span-2"
+            />
+            <MockCard
+              icon={<Package className="size-4" />}
+              label="SKU"
+              value="148"
+            />
+            <MockCard
+              icon={<Factory className="size-4" />}
+              label="В работе"
+              value="36"
+            />
+            <div className="col-span-2 rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-sm p-3 overflow-hidden">
+              <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-2">
+                Поставки на неделю
+              </div>
+              <div className="flex items-end gap-1.5 h-12">
+                {[40, 65, 35, 80, 55, 90, 70].map((h, i) => (
+                  <div
+                    key={i}
+                    className="flex-1 rounded-sm bg-gradient-to-t from-indigo-500/40 to-fuchsia-400/80"
+                    style={{
+                      height: `${h}%`,
+                      transition: 'height 600ms ease',
+                      transitionDelay: `${i * 60}ms`,
+                      transform: mounted ? 'scaleY(1)' : 'scaleY(0)',
+                      transformOrigin: 'bottom',
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative text-xs text-neutral-500">
           &copy; {new Date().getFullYear()} Ozon Stats
-        </p>
-      </div>
+        </div>
+      </aside>
 
-      <style>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0) scale(1); }
-          50% { transform: translateY(-20px) scale(1.05); }
-        }
-      `}</style>
+      {/* RIGHT — form */}
+      <main className="relative flex items-center justify-center p-6 sm:p-10">
+        {/* mobile logo */}
+        <div className="lg:hidden absolute top-6 left-6 flex items-center gap-2 text-sm font-medium">
+          <div className="size-8 rounded-lg bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 flex items-center justify-center font-bold">
+            O
+          </div>
+          <span className="tracking-tight">Ozon Stats</span>
+        </div>
+
+        <div
+          className={`w-full max-w-sm transition-all duration-500 ${
+            mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'
+          }`}
+        >
+          <div className="space-y-2 mb-8">
+            <h1 className="text-3xl font-semibold tracking-tight">
+              С возвращением
+            </h1>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              Войдите, чтобы продолжить работу с панелью.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <label
+                htmlFor="email"
+                className="text-xs font-medium text-neutral-600 dark:text-neutral-400"
+              >
+                Email
+              </label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@company.com"
+                required
+                autoComplete="email"
+                className="h-11 rounded-xl bg-white dark:bg-white/[0.03] border-neutral-200 dark:border-white/10 focus-visible:ring-2 focus-visible:ring-neutral-900/10 dark:focus-visible:ring-white/20 transition-all"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="password"
+                  className="text-xs font-medium text-neutral-600 dark:text-neutral-400"
+                >
+                  Пароль
+                </label>
+              </div>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                  className="h-11 pr-10 rounded-xl bg-white dark:bg-white/[0.03] border-neutral-200 dark:border-white/10 focus-visible:ring-2 focus-visible:ring-neutral-900/10 dark:focus-visible:ring-white/20 transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors"
+                  tabIndex={-1}
+                  aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                >
+                  {showPassword ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {error && (
+              <div className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl px-3 py-2.5">
+                <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              disabled={loading}
+              className="group w-full h-11 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all disabled:opacity-60 cursor-pointer shadow-sm"
+            >
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <svg className="size-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                    />
+                  </svg>
+                  Входим...
+                </span>
+              ) : (
+                <span className="flex items-center justify-center gap-1.5">
+                  Войти
+                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+                </span>
+              )}
+            </Button>
+          </form>
+
+          <p className="mt-8 text-xs text-neutral-400 dark:text-neutral-600 text-center">
+            Защищено JWT &middot; Сессия 24 часа
+          </p>
+        </div>
+      </main>
+    </div>
+  )
+}
+
+function MockCard({
+  icon,
+  label,
+  value,
+  delta,
+  className = '',
+}: {
+  icon: React.ReactNode
+  label: string
+  value: string
+  delta?: string
+  className?: string
+}) {
+  return (
+    <div
+      className={`rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-sm p-3 ${className}`}
+    >
+      <div className="flex items-center justify-between text-neutral-400 mb-2">
+        {icon}
+        {delta && (
+          <span className="text-[10px] font-medium text-emerald-400">
+            {delta}
+          </span>
+        )}
+      </div>
+      <div className="text-[10px] uppercase tracking-wider text-neutral-500">
+        {label}
+      </div>
+      <div className="text-xl font-semibold text-white tracking-tight">
+        {value}
+      </div>
     </div>
   )
 }

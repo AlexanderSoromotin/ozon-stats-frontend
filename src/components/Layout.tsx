@@ -19,7 +19,7 @@ import {
   Box,
   Settings2,
   Users,
-  Receipt,
+  ShoppingCart,
   Download,
   Upload,
 } from 'lucide-react'
@@ -30,7 +30,7 @@ const navItems = [
   { to: '/components', icon: Boxes, label: 'Расходники' },
   { to: '/printers', icon: Printer, label: 'Оборудование' },
   { to: '/production', icon: Factory, label: 'Производство' },
-  { to: '/inventory', icon: Warehouse, label: 'Склад и спрос' },
+  { to: '/inventory', icon: Warehouse, label: 'Свой склад' },
   { to: '/supply', icon: Truck, label: 'Поставки' },
   { to: '/finance', icon: DollarSign, label: 'Финансы' },
   { to: '/analytics/print-hour', icon: Clock, label: 'Прибыль/час' },
@@ -38,7 +38,7 @@ const navItems = [
   { to: '/print-profiles', icon: Settings2, label: 'Профили печати' },
   { to: '/box-types', icon: Box, label: 'Короба' },
   { to: '/partners', icon: Users, label: 'Партнёры' },
-  { to: '/expenses', icon: Receipt, label: 'Расходы' },
+  { to: '/expenses', icon: ShoppingCart, label: 'Продажи и расходы' },
 ]
 
 export default function Layout() {

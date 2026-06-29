@@ -37,11 +37,11 @@ function diffDays(from: string, to: string): number {
   return Math.round((t - f) / 86400000) + 1
 }
 
-export function presetPeriod(preset: Exclude<PeriodPreset, 'custom'>): PeriodValue {
-  const y = toIso(yesterday())
-  if (preset === 'day') return { from: y, to: y, preset }
-  if (preset === 'week') return { from: addDays(y, -6), to: y, preset }
-  return { from: addDays(y, -29), to: y, preset }
+export function presetPeriod(preset: Exclude<PeriodPreset, 'custom'>, includeToday = false): PeriodValue {
+  const end = toIso(includeToday ? new Date() : yesterday())
+  if (preset === 'day') return { from: end, to: end, preset }
+  if (preset === 'week') return { from: addDays(end, -6), to: end, preset }
+  return { from: addDays(end, -29), to: end, preset }
 }
 
 const PRESETS: { key: Exclude<PeriodPreset, 'custom'>; label: string }[] = [
@@ -53,9 +53,10 @@ const PRESETS: { key: Exclude<PeriodPreset, 'custom'>; label: string }[] = [
 interface Props {
   value: PeriodValue
   onChange: (v: PeriodValue) => void
+  includeToday?: boolean
 }
 
-export default function PeriodPicker({ value, onChange }: Props) {
+export default function PeriodPicker({ value, onChange, includeToday = false }: Props) {
   const [customOpen, setCustomOpen] = useState(value.preset === 'custom')
 
   useEffect(() => {
@@ -63,7 +64,7 @@ export default function PeriodPicker({ value, onChange }: Props) {
   }, [value.preset])
 
   const length = diffDays(value.from, value.to)
-  const maxDate = toIso(yesterday())
+  const maxDate = toIso(includeToday ? new Date() : yesterday())
   const canForward = value.to < maxDate
 
   function shift(direction: -1 | 1) {
@@ -80,7 +81,7 @@ export default function PeriodPicker({ value, onChange }: Props) {
 
   function selectPreset(p: Exclude<PeriodPreset, 'custom'>) {
     setCustomOpen(false)
-    onChange(presetPeriod(p))
+    onChange(presetPeriod(p, includeToday))
   }
 
   function openCustom() {
