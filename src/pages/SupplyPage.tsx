@@ -9,20 +9,11 @@ import { Select } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Plus, Trash2, Hammer, Send, AlertTriangle, FileText, Calendar, CheckCircle2, Eye, Calculator, ClipboardCheck, CalendarRange, Wand2, Download, RefreshCw } from 'lucide-react'
+import { Plus, Trash2, Send, AlertTriangle, FileText, Calendar, CheckCircle2, Eye, Wand2, Download, RefreshCw } from 'lucide-react'
 import { fmtDate, fmtDateTime, fmtMoney } from '@/lib/format'
 
 interface Sku { id: number; name: string; article: string }
 interface Cluster { id: number; name: string }
-interface BoxType { id: number; name: string; inner_volume_cm3: number }
-
-interface Signal {
-  sku_id: number | ''; cluster_id: number | ''
-  need_qty: number; ship_by_date: string; criticality_days: number
-}
-
-interface CargoDraft { sku_id: number; box_type_id: number; qty: number; estimated_capacity?: number }
-interface DraftGroup { cluster_id: number; ship_by_date: string; cargoes: CargoDraft[]; deferred: any[] }
 
 interface Supply {
   id: number; cluster_id: number; status: string; channel: string
@@ -37,8 +28,6 @@ const STATUS_LABEL: Record<string, string> = {
 const STATUS_VARIANT: Record<string, 'outline' | 'warning' | 'success' | 'secondary'> = {
   DRAFT: 'outline', READY: 'warning', SUBMITTED: 'warning', ACCEPTED: 'success', CANCELLED: 'secondary',
 }
-
-const emptySignal = (): Signal => ({ sku_id: '', cluster_id: '', need_qty: 0, ship_by_date: '', criticality_days: 7 })
 
 // ─── List Tab ────────────────────────────────────────────────────────────────
 
@@ -295,21 +284,6 @@ function SupplyDetailDialog({ id, onClose }: { id: number; onClose: () => void }
       </DialogFooter>
     </Dialog>
   )
-}
-
-// ─── Demand Tab (расчёт потребности по кластерам) ────────────────────────────
-
-interface DemandRow {
-  sku_id: number
-  cluster_id: number
-  velocity_per_day: number
-  current_stock_in_cluster: number
-  in_transit_qty: number
-  stockout_at: string | null
-  ship_by_date: string | null
-  produce_by_date: string | null
-  need_qty: number
-  criticality_days: number
 }
 
 // ─── Auto-Plan Tab ───────────────────────────────────────────────────────────
