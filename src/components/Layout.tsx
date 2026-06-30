@@ -14,12 +14,8 @@ import {
   LogOut,
   Boxes,
   Printer,
-  Clock,
-  ArrowRightLeft,
   Box,
-  Settings2,
   Users,
-  ShoppingCart,
   Download,
   Upload,
 } from 'lucide-react'
@@ -33,12 +29,8 @@ const navItems = [
   { to: '/inventory', icon: Warehouse, label: 'Свой склад' },
   { to: '/supply', icon: Truck, label: 'Поставки' },
   { to: '/finance', icon: DollarSign, label: 'Финансы' },
-  { to: '/analytics/print-hour', icon: Clock, label: 'Прибыль/час' },
-  { to: '/strategy/fbs-to-fbo', icon: ArrowRightLeft, label: 'Стратегия FBO' },
-  { to: '/print-profiles', icon: Settings2, label: 'Профили печати' },
   { to: '/box-types', icon: Box, label: 'Короба' },
   { to: '/partners', icon: Users, label: 'Партнёры' },
-  { to: '/expenses', icon: ShoppingCart, label: 'Продажи и расходы' },
 ]
 
 export default function Layout() {
@@ -87,13 +79,18 @@ export default function Layout() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <aside className="w-56 shrink-0 border-r bg-sidebar flex flex-col overflow-y-auto">
-        <div className="px-4 py-5 border-b">
-          <Link to="/" className="font-semibold text-sm">Ozon Stats</Link>
-          <p className="text-xs text-muted-foreground mt-0.5">{user?.name}</p>
+    <div className="flex h-screen overflow-hidden bg-background">
+      <aside className="w-60 shrink-0 border-r border-border/60 bg-sidebar/60 backdrop-blur-sm flex flex-col overflow-y-auto">
+        <div className="px-4 py-5">
+          <Link to="/" className="flex items-center gap-2.5 group">
+            <img src="/logo.png" alt="Логотип" className="size-8 rounded-lg object-contain group-hover:scale-105 transition-transform" />
+            <div className="flex flex-col leading-tight">
+              <span className="font-semibold text-sm tracking-tight">SASeller</span>
+              <span className="text-[11px] text-muted-foreground truncate max-w-[140px]">{user?.name}</span>
+            </div>
+          </Link>
         </div>
-        <nav className="flex-1 p-2 flex flex-col gap-0.5">
+        <nav className="flex-1 px-3 pb-2 flex flex-col gap-0.5">
           {navItems.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
@@ -101,25 +98,32 @@ export default function Layout() {
               end={to === '/'}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
+                  'group/nav relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-all',
                   isActive
-                    ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                    : 'text-sidebar-foreground hover:bg-sidebar-accent/60'
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-xs'
+                    : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
                 )
               }
             >
-              <Icon className="size-4 shrink-0" />
-              {label}
+              {({ isActive }) => (
+                <>
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-r-full bg-primary" />
+                  )}
+                  <Icon className={cn('size-4 shrink-0 transition-colors', isActive ? 'text-primary' : 'text-muted-foreground group-hover/nav:text-foreground')} />
+                  {label}
+                </>
+              )}
             </NavLink>
           ))}
         </nav>
         {isOwner && (
-          <div className="p-2 border-t flex flex-col gap-0.5">
-            <Button variant="ghost" size="sm" className="w-full justify-start gap-2.5" onClick={handleExport} disabled={exporting}>
+          <div className="px-3 py-2 border-t border-border/60 flex flex-col gap-0.5">
+            <Button variant="ghost" size="sm" className="w-full justify-start gap-2.5 text-muted-foreground hover:text-foreground" onClick={handleExport} disabled={exporting}>
               <Download className="size-4" />
               {exporting ? 'Экспорт...' : 'Экспорт настроек'}
             </Button>
-            <Button variant="ghost" size="sm" className="w-full justify-start gap-2.5" onClick={() => fileInputRef.current?.click()} disabled={importing}>
+            <Button variant="ghost" size="sm" className="w-full justify-start gap-2.5 text-muted-foreground hover:text-foreground" onClick={() => fileInputRef.current?.click()} disabled={importing}>
               <Upload className="size-4" />
               {importing ? 'Импорт...' : 'Импорт настроек'}
             </Button>
@@ -132,15 +136,25 @@ export default function Layout() {
             />
           </div>
         )}
-        <div className="p-2 border-t">
-          <Button variant="ghost" size="sm" className="w-full justify-start gap-2.5" onClick={handleLogout}>
+        <div className="px-3 py-2 border-t border-border/60">
+          <Button variant="ghost" size="sm" className="w-full justify-start gap-2.5 text-muted-foreground hover:text-foreground" onClick={handleLogout}>
             <LogOut className="size-4" />
             Выйти
           </Button>
         </div>
       </aside>
-      <main className="flex-1 overflow-auto p-6">
-        <Outlet />
+      <main className="flex-1 overflow-auto">
+        <div className="relative min-h-full p-6 lg:p-8">
+          <div
+            className="pointer-events-none fixed top-0 right-0 -z-10 size-[600px] rounded-full opacity-40"
+            style={{
+              background:
+                'radial-gradient(circle at center, oklch(0.93 0.04 250 / 0.5), transparent 60%)',
+              transform: 'translate(30%, -40%)',
+            }}
+          />
+          <Outlet />
+        </div>
       </main>
     </div>
   )

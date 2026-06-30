@@ -30,12 +30,15 @@ interface PrintJob {
   type: 'print_job'
   id: number
   sku_id: number
+  article: string | null
+  sku_name: string | null
   qty: number
   actual_qty: number | null
   status: TaskStatus
   started_at: string | null
   finished_at: string | null
   printer_id: number | null
+  printer_name: string | null
   duration_min: number | null
   kind: 'SHORT' | 'OVERNIGHT' | null
   fails: number
@@ -45,6 +48,8 @@ interface PackingTask {
   type: 'packing_task'
   id: number
   sku_id: number
+  article: string | null
+  sku_name: string | null
   qty: number
   actual_qty: number | null
   status: TaskStatus
@@ -75,6 +80,63 @@ function durLabel(min: number | null) {
   return h > 0 ? `${h}ч ${m}м` : `${m}м`
 }
 
+// datetime-local format: "YYYY-MM-DDTHH:mm"
+function toDatetimeLocal(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function defaultShiftEnd(): string {
+  const d = new Date()
+  d.setHours(d.getHours() + 8, d.getMinutes(), 0, 0)
+  return toDatetimeLocal(d)
+}
+
+function adjustShiftEnd(current: string, deltaMin: number): string {
+  const d = new Date(current)
+  d.setMinutes(d.getMinutes() + deltaMin)
+  return toDatetimeLocal(d)
+}
+
+function getDatePart(dtLocal: string): string {
+  return dtLocal.split('T')[0] ?? ''
+}
+
+function getTimePart(dtLocal: string): string {
+  return dtLocal.split('T')[1]?.slice(0, 5) ?? ''
+}
+
+function todayStr(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function tomorrowStr(): string {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function getHourVal(dtLocal: string): number {
+  return parseInt(getTimePart(dtLocal).split(':')[0] ?? '18')
+}
+
+function getMinVal(dtLocal: string): number {
+  return parseInt(getTimePart(dtLocal).split(':')[1] ?? '0')
+}
+
+function withHour(dtLocal: string, h: number): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${getDatePart(dtLocal)}T${pad(Math.max(0, Math.min(23, h)))}:${pad(getMinVal(dtLocal))}`
+}
+
+function withMinute(dtLocal: string, m: number): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${getDatePart(dtLocal)}T${pad(getHourVal(dtLocal))}:${pad(((m % 60) + 60) % 60)}`
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function ProductionPage() {
@@ -83,8 +145,9 @@ export default function ProductionPage() {
   // shift open dialog
   const [openShiftDialog, setOpenShiftDialog] = useState(false)
   const [plannedEnd, setPlannedEnd] = useState('')
-  // const [endHour, setEndHour] = useState(18)
-  // const [endMinute, setEndMinute] = useState(0)
+  const [dateMode, setDateMode] = useState<'today' | 'tomorrow' | 'other'>('today')
+  const [editingSeg, setEditingSeg] = useState<'h' | 'm' | null>(null)
+  const [editVal, setEditVal] = useState('')
 
   // close shift dialog
   const [closeShiftDialog, setCloseShiftDialog] = useState(false)
@@ -152,14 +215,24 @@ export default function ProductionPage() {
 
   // ── Mutations ──
   const openShiftMutation = useMutation({
-    mutationFn: () => api.post('/shifts/open', { planned_end_at: plannedEnd }),
+    // Преобразуем datetime-local (без timezone) в ISO с локальным offset,
+    // иначе сервер (UTC) интерпретирует как UTC и показывает неверное время
+    mutationFn: () => api.post('/shifts/open', { planned_end_at: new Date(plannedEnd).toISOString() }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['shift-current'] }); setOpenShiftDialog(false) },
     onError: (e: any) => setActionError(e.response?.data?.message ?? 'Ошибка'),
   })
 
+  const [closeResult, setCloseResult] = useState<{ printer_hours: Array<{ printer_id: number; hours_added: number; total_hours: number; maintenance_due: boolean; maintenance_actions: string[] }> } | null>(null)
+
   const closeShiftMutation = useMutation({
     mutationFn: () => api.post(`/shifts/${shift!.id}/close`, { notes: shiftNotes || null }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['shift-current'] }); setCloseShiftDialog(false); setShiftNotes('') },
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['shift-current'] })
+      setCloseShiftDialog(false)
+      setShiftNotes('')
+      const ph = res.data?.data?.printer_hours
+      if (ph?.length) setCloseResult({ printer_hours: ph })
+    },
     onError: (e: any) => setActionError(e.response?.data?.message ?? 'Ошибка'),
   })
 
@@ -234,7 +307,7 @@ export default function ProductionPage() {
           <p className="text-sm text-muted-foreground mt-0.5">Смены, печать и упаковка</p>
         </div>
         {!shift && (
-          <Button onClick={() => { setActionError(''); setOpenShiftDialog(true) }} className="gap-2">
+          <Button onClick={() => { setActionError(''); setPlannedEnd(defaultShiftEnd()); setDateMode('today'); setEditingSeg(null); setOpenShiftDialog(true) }} className="gap-2">
             <Play className="size-4" /> Открыть смену
           </Button>
         )}
@@ -262,7 +335,7 @@ export default function ProductionPage() {
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-20 text-center gap-3">
           <CalendarClock className="size-10 text-muted-foreground/40" />
           <p className="text-muted-foreground">Нет открытой смены</p>
-          <Button onClick={() => setOpenShiftDialog(true)} variant="secondary" size="sm">
+          <Button onClick={() => { setPlannedEnd(defaultShiftEnd()); setDateMode('today'); setEditingSeg(null); setOpenShiftDialog(true) }} variant="secondary" size="sm">
             Открыть смену
           </Button>
         </div>
@@ -297,11 +370,13 @@ export default function ProductionPage() {
             {printJobs.map(job => (
               <div key={job.id} className="rounded-xl border bg-card p-4 flex flex-col gap-3">
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-sm">SKU #{job.sku_id}</p>
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm font-mono">{job.article ?? `SKU #${job.sku_id}`}</p>
+                    {job.sku_name && <p className="text-xs text-muted-foreground truncate mt-0.5">{job.sku_name}</p>}
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Принтер #{job.printer_id ?? '—'} · {job.kind ?? '—'}
+                      {job.printer_name ?? (job.printer_id ? `Принтер #${job.printer_id}` : 'Принтер не назначен')}
                       {job.duration_min ? ` · ${durLabel(job.duration_min)}` : ''}
+                      {job.kind === 'OVERNIGHT' ? ' · ночная' : ''}
                     </p>
                   </div>
                   <Badge variant={STATUS_VARIANT[job.status]}>{STATUS_LABEL[job.status]}</Badge>
@@ -317,17 +392,7 @@ export default function ProductionPage() {
                   )}
                 </div>
 
-                {job.status === 'PLANNED' && (
-                  <div className="flex gap-2">
-                    <Button size="sm" className="gap-1.5" onClick={() => startPrint(job.id)}>
-                      <Play className="size-3.5" /> Начать
-                    </Button>
-                    <Button size="sm" variant="ghost" className="gap-1.5 text-destructive hover:text-destructive" onClick={() => cancelPrint(job.id)}>
-                      <XCircle className="size-3.5" /> Отменить
-                    </Button>
-                  </div>
-                )}
-                {job.status === 'RUNNING' && (
+                {(job.status === 'PLANNED' || job.status === 'RUNNING') && (
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" className="gap-1.5" onClick={() => { setCompletePrintDialog(job); setActualQty(String(job.qty)); setFails('0'); setActionError('') }}>
                       <CheckCircle2 className="size-3.5" /> Завершить
@@ -358,7 +423,8 @@ export default function ProductionPage() {
               <div key={task.id} className="rounded-xl border bg-card p-4 flex flex-col gap-3">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="font-medium text-sm">SKU #{task.sku_id}</p>
+                    <p className="font-medium text-sm font-mono">{task.article ?? `SKU #${task.sku_id}`}</p>
+                    {task.sku_name && <p className="text-xs text-muted-foreground truncate mt-0.5">{task.sku_name}</p>}
                     {task.source_print_job_id && (
                       <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
                         <ChevronRight className="size-3" /> Печать #{task.source_print_job_id}
@@ -405,20 +471,167 @@ export default function ProductionPage() {
       )}
 
       {/* Open shift dialog */}
-      <Dialog open={openShiftDialog} onClose={() => setOpenShiftDialog(false)}>
+      <Dialog open={openShiftDialog} onClose={() => { setOpenShiftDialog(false); setEditingSeg(null) }}>
         <DialogHeader>
           <DialogTitle>Открыть смену</DialogTitle>
-          <DialogClose onClose={() => setOpenShiftDialog(false)} />
+          <DialogClose onClose={() => { setOpenShiftDialog(false); setEditingSeg(null) }} />
         </DialogHeader>
         <DialogContent>
-          <div className="flex flex-col gap-1.5">
-            <Label>Плановое завершение</Label>
-            <Input type="datetime-local" value={plannedEnd} onChange={e => setPlannedEnd(e.target.value)} />
+          <div className="flex flex-col gap-5">
+
+            {/* Выбор даты — сегментный контрол */}
+            <div className="flex rounded-lg border border-border overflow-hidden">
+              {(['today', 'tomorrow', 'other'] as const).map((mode, i) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => {
+                    setDateMode(mode)
+                    const t = getTimePart(plannedEnd) || '18:00'
+                    if (mode === 'today') setPlannedEnd(`${todayStr()}T${t}`)
+                    if (mode === 'tomorrow') setPlannedEnd(`${tomorrowStr()}T${t}`)
+                  }}
+                  className={[
+                    'flex-1 py-2 text-sm font-medium transition-colors',
+                    i > 0 ? 'border-l border-border' : '',
+                    dateMode === mode
+                      ? 'bg-foreground text-background'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/40',
+                  ].join(' ')}
+                >
+                  {mode === 'today' ? 'Сегодня' : mode === 'tomorrow' ? 'Завтра' : 'Другой день'}
+                </button>
+              ))}
+            </div>
+
+            {/* Поле выбора даты для «Другой день» */}
+            {dateMode === 'other' && (
+              <Input
+                type="date"
+                value={getDatePart(plannedEnd)}
+                onChange={e => setPlannedEnd(`${e.target.value}T${getTimePart(plannedEnd) || '18:00'}`)}
+              />
+            )}
+
+            {/* Таймпикер */}
+            <div className="flex flex-col items-center gap-3 py-1">
+
+              {/* Кнопки + */}
+              <div className="flex gap-1">
+                {([5, 15, 30, 60] as const).map(d => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setPlannedEnd(adjustShiftEnd(plannedEnd, d))}
+                    className="w-14 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                  >
+                    +{d < 60 ? `${d}м` : '1ч'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Крупное время с раздельным редактированием */}
+              <div className="flex items-center gap-0.5 py-1" onMouseLeave={() => {}}>
+                {/* Часы */}
+                {editingSeg === 'h' ? (
+                  <input
+                    autoFocus
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={editVal}
+                    onChange={e => setEditVal(e.target.value)}
+                    onBlur={() => {
+                      const v = parseInt(editVal)
+                      if (!isNaN(v)) setPlannedEnd(withHour(plannedEnd, v))
+                      setEditingSeg(null)
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        const v = parseInt(editVal)
+                        if (!isNaN(v)) setPlannedEnd(withHour(plannedEnd, v))
+                        setEditingSeg(null)
+                      }
+                      if (e.key === 'Tab') {
+                        e.preventDefault()
+                        const v = parseInt(editVal)
+                        if (!isNaN(v)) setPlannedEnd(withHour(plannedEnd, v))
+                        setEditingSeg('m')
+                        setEditVal(String(getMinVal(plannedEnd)).padStart(2, '0'))
+                      }
+                      if (e.key === 'Escape') setEditingSeg(null)
+                    }}
+                    className="w-[5.5rem] text-center text-6xl font-bold tabular-nums tracking-tight bg-transparent border-b-2 border-primary outline-none text-foreground [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                ) : (
+                  <span
+                    onClick={() => { setEditingSeg('h'); setEditVal(String(getHourVal(plannedEnd)).padStart(2, '0')) }}
+                    className="text-6xl font-bold tabular-nums tracking-tight cursor-pointer px-2 py-1 rounded-lg hover:bg-muted/60 transition-colors select-none"
+                  >
+                    {getTimePart(plannedEnd).split(':')[0] ?? '18'}
+                  </span>
+                )}
+
+                <span className="text-6xl font-bold text-muted-foreground select-none mb-1">:</span>
+
+                {/* Минуты */}
+                {editingSeg === 'm' ? (
+                  <input
+                    autoFocus
+                    type="number"
+                    min={0}
+                    max={59}
+                    value={editVal}
+                    onChange={e => setEditVal(e.target.value)}
+                    onBlur={() => {
+                      const v = parseInt(editVal)
+                      if (!isNaN(v)) setPlannedEnd(withMinute(plannedEnd, v))
+                      setEditingSeg(null)
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        const v = parseInt(editVal)
+                        if (!isNaN(v)) setPlannedEnd(withMinute(plannedEnd, v))
+                        setEditingSeg(null)
+                      }
+                      if (e.key === 'Escape') setEditingSeg(null)
+                    }}
+                    className="w-[5.5rem] text-center text-6xl font-bold tabular-nums tracking-tight bg-transparent border-b-2 border-primary outline-none text-foreground [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                ) : (
+                  <span
+                    onClick={() => { setEditingSeg('m'); setEditVal(String(getMinVal(plannedEnd)).padStart(2, '0')) }}
+                    className="text-6xl font-bold tabular-nums tracking-tight cursor-pointer px-2 py-1 rounded-lg hover:bg-muted/60 transition-colors select-none"
+                  >
+                    {getTimePart(plannedEnd).split(':')[1] ?? '00'}
+                  </span>
+                )}
+              </div>
+
+              {/* Подсказка */}
+              {editingSeg === null && (
+                <p className="text-xs text-muted-foreground/60">нажмите на часы или минуты для ввода</p>
+              )}
+
+              {/* Кнопки − */}
+              <div className="flex gap-1">
+                {([5, 15, 30, 60] as const).map(d => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setPlannedEnd(adjustShiftEnd(plannedEnd, -d))}
+                    className="w-14 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                  >
+                    −{d < 60 ? `${d}м` : '1ч'}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-          {actionError && <p className="text-sm text-destructive mt-3">{actionError}</p>}
+          {actionError && <p className="text-sm text-destructive mt-2">{actionError}</p>}
         </DialogContent>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpenShiftDialog(false)}>Отмена</Button>
+          <Button variant="outline" onClick={() => { setOpenShiftDialog(false); setEditingSeg(null) }}>Отмена</Button>
           <Button disabled={!plannedEnd || openShiftMutation.isPending} onClick={() => openShiftMutation.mutate()}>
             {openShiftMutation.isPending ? 'Открываем...' : 'Открыть смену'}
           </Button>
@@ -553,6 +766,40 @@ export default function ProductionPage() {
             {createJobMutation.isPending ? 'Создание...' : 'Создать'}
           </Button>
         </DialogFooter>
+      </Dialog>
+
+      {/* Итоги закрытия смены */}
+      <Dialog open={!!closeResult} onOpenChange={() => setCloseResult(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Смена закрыта</DialogTitle></DialogHeader>
+          {closeResult && (
+            <div className="flex flex-col gap-3">
+              {closeResult.printer_hours.length === 0 && (
+                <p className="text-sm text-muted-foreground">За смену нет завершённых заданий печати.</p>
+              )}
+              {closeResult.printer_hours.map(ph => (
+                <div key={ph.printer_id} className={`rounded-xl border px-4 py-3 flex flex-col gap-1 ${ph.maintenance_due ? 'border-orange-400 bg-orange-50 dark:bg-orange-950/20' : ''}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Принтер #{ph.printer_id}</span>
+                    <span className="text-xs text-muted-foreground">Итого: {ph.total_hours.toFixed(1)} ч</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">+{ph.hours_added.toFixed(2)} ч за смену</span>
+                  {ph.maintenance_due && (
+                    <div className="mt-1 flex flex-col gap-0.5">
+                      <span className="text-sm font-semibold text-orange-600">⚠ Требуется ТО</span>
+                      {ph.maintenance_actions.map((a, i) => (
+                        <span key={i} className="text-xs text-orange-700">— {a}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setCloseResult(null)}>Закрыть</Button>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
     </div>
   )

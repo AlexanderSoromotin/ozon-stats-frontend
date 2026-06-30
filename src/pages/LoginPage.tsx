@@ -65,10 +65,8 @@ export default function LoginPage() {
 
         {/* logo */}
         <div className="relative flex items-center gap-2.5 text-sm font-medium">
-          <div className="size-8 rounded-lg bg-white text-neutral-950 flex items-center justify-center font-bold">
-            O
-          </div>
-          <span className="tracking-tight">Ozon Stats</span>
+          <img src="/logo.png" alt="Логотип" className="size-8 rounded-lg object-contain" />
+          <span className="tracking-tight">SASeller</span>
         </div>
 
         {/* hero copy + bento preview */}
@@ -133,7 +131,7 @@ export default function LoginPage() {
         </div>
 
         <div className="relative text-xs text-neutral-500">
-          &copy; {new Date().getFullYear()} Ozon Stats
+          &copy; {new Date().getFullYear()} SASeller
         </div>
       </aside>
 
@@ -141,10 +139,8 @@ export default function LoginPage() {
       <main className="relative flex items-center justify-center p-6 sm:p-10">
         {/* mobile logo */}
         <div className="lg:hidden absolute top-6 left-6 flex items-center gap-2 text-sm font-medium">
-          <div className="size-8 rounded-lg bg-neutral-900 dark:bg-white text-white dark:text-neutral-950 flex items-center justify-center font-bold">
-            O
-          </div>
-          <span className="tracking-tight">Ozon Stats</span>
+          <img src="/logo.png" alt="Логотип" className="size-8 rounded-lg object-contain" />
+          <span className="tracking-tight">SASeller</span>
         </div>
 
         <div

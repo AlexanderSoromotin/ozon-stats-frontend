@@ -13,12 +13,8 @@ import InventoryPage from '@/pages/InventoryPage'
 import SupplyPage from '@/pages/SupplyPage'
 import FinancePage from '@/pages/FinancePage'
 import PrintersPage from '@/pages/PrintersPage'
-import PrintEconomicsPage from '@/pages/PrintEconomicsPage'
-import StrategyPage from '@/pages/StrategyPage'
 import BoxTypesPage from '@/pages/BoxTypesPage'
-import PrintProfilesPage from '@/pages/PrintProfilesPage'
 import PartnersPage from '@/pages/PartnersPage'
-import ExpensesPage from '@/pages/ExpensesPage'
 
 const queryClient = new QueryClient()
 
@@ -40,12 +36,8 @@ export default function App() {
                 <Route path="supply" element={<SupplyPage />} />
                 <Route path="finance" element={<FinancePage />} />
                 <Route path="printers" element={<PrintersPage />} />
-                <Route path="analytics/print-hour" element={<PrintEconomicsPage />} />
-                <Route path="strategy/fbs-to-fbo" element={<StrategyPage />} />
                 <Route path="box-types" element={<BoxTypesPage />} />
-                <Route path="print-profiles" element={<PrintProfilesPage />} />
                 <Route path="partners" element={<PartnersPage />} />
-                <Route path="expenses" element={<ExpensesPage />} />
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

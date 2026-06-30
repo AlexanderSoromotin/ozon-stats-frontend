@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,7 +9,7 @@ import { Select } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Plus, Trash2, Hammer, Send, AlertTriangle, FileText, Calendar, CheckCircle2, Eye, Calculator, ClipboardCheck, CalendarRange, Wand2 } from 'lucide-react'
+import { Plus, Trash2, Hammer, Send, AlertTriangle, FileText, Calendar, CheckCircle2, Eye, Calculator, ClipboardCheck, CalendarRange, Wand2, Download, RefreshCw } from 'lucide-react'
 import { fmtDate, fmtDateTime, fmtMoney } from '@/lib/format'
 
 interface Sku { id: number; name: string; article: string }
@@ -32,10 +32,10 @@ interface Supply {
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  DRAFT: 'Черновик', SUBMITTED: 'Отправлено', ACCEPTED: 'Принято', CANCELLED: 'Отменено',
+  DRAFT: 'В производстве', READY: 'Готово к отправке', SUBMITTED: 'Отправлено', ACCEPTED: 'В пути / Принято', CANCELLED: 'Отменено',
 }
 const STATUS_VARIANT: Record<string, 'outline' | 'warning' | 'success' | 'secondary'> = {
-  DRAFT: 'outline', SUBMITTED: 'warning', ACCEPTED: 'success', CANCELLED: 'secondary',
+  DRAFT: 'outline', READY: 'warning', SUBMITTED: 'warning', ACCEPTED: 'success', CANCELLED: 'secondary',
 }
 
 const emptySignal = (): Signal => ({ sku_id: '', cluster_id: '', need_qty: 0, ship_by_date: '', criticality_days: 7 })
@@ -191,6 +191,9 @@ function BuildTab() {
 function ListTab({ onOpen }: { onOpen: (id: number) => void }) {
   const [status, setStatus] = useState('')
   const [page, setPage] = useState(1)
+  const [importId, setImportId] = useState('')
+  const [importError, setImportError] = useState('')
+  const queryClient = useQueryClient()
 
   const { data, isLoading } = useQuery({
     queryKey: ['supplies', status, page],
@@ -198,21 +201,57 @@ function ListTab({ onOpen }: { onOpen: (id: number) => void }) {
     refetchInterval: 15000,
   })
 
+  const importMutation = useMutation({
+    mutationFn: (ozonId: number) => api.post(`/supply/import-ozon/${ozonId}`).then(r => r.data.data),
+    onSuccess: () => {
+      setImportId('')
+      setImportError('')
+      queryClient.invalidateQueries({ queryKey: ['supplies'] })
+    },
+    onError: (e: any) => setImportError(e.response?.data?.message ?? 'Ошибка импорта'),
+  })
+
+  function handleImport() {
+    const id = parseInt(importId, 10)
+    if (!id) { setImportError('Введите числовой ID поставки из Ozon'); return }
+    setImportError('')
+    importMutation.mutate(id)
+  }
+
   const supplies: Supply[] = data?.data ?? []
   const meta = data?.meta
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-end gap-3">
+      <div className="flex items-end gap-3 flex-wrap">
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">Статус</Label>
           <Select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }} className="w-44">
             <option value="">Все</option>
-            <option value="DRAFT">Черновик</option>
+            <option value="DRAFT">В производстве</option>
+            <option value="READY">Готово к отправке</option>
             <option value="SUBMITTED">Отправлено</option>
-            <option value="ACCEPTED">Принято</option>
+            <option value="ACCEPTED">В пути / Принято</option>
             <option value="CANCELLED">Отменено</option>
           </Select>
+        </div>
+        <div className="flex flex-col gap-1.5 ml-auto">
+          <Label className="text-xs">Импорт поставки из Ozon по ID</Label>
+          <div className="flex gap-2">
+            <Input
+              placeholder="supply_order_id"
+              value={importId}
+              onChange={e => setImportId(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleImport()}
+              className="w-44 h-9 font-mono text-sm"
+            />
+            <Button size="sm" variant="outline" onClick={handleImport} disabled={importMutation.isPending} className="gap-1.5 h-9">
+              <Download className="size-3.5" />
+              {importMutation.isPending ? 'Загрузка...' : 'Импорт'}
+            </Button>
+          </div>
+          {importError && <p className="text-xs text-destructive">{importError}</p>}
+          {importMutation.isSuccess && <p className="text-xs text-green-600">Поставка импортирована</p>}
         </div>
       </div>
 
@@ -693,7 +732,11 @@ function AutoPlanTab() {
   const [maxClusters, setMaxClusters] = useState(5)
   const [minCoverage, setMinCoverage] = useState(25)
   const [minProfitRub, setMinProfitRub] = useState(5000)
-  const [priorityClusterIds, setPriorityClusterIds] = useState<number[]>([])
+  const [minQty, setMinQty] = useState(1)
+  const [priorityClusterIds, setPriorityClusterIds] = useState<number[]>(() => {
+    try { return JSON.parse(localStorage.getItem('supply_priority_clusters') ?? '[]') } catch { return [] }
+  })
+  const [clusterSearch, setClusterSearch] = useState('')
   const [plan, setPlan] = useState<PlanResponse | null>(null)
   const [error, setError] = useState('')
 
@@ -715,6 +758,7 @@ function AutoPlanTab() {
       max_clusters: maxClusters,
       min_sku_coverage_pct: minCoverage,
       min_profit_minor: minProfitRub * 100,
+      min_qty: minQty,
       priority_cluster_ids: priorityClusterIds,
     }).then(r => r.data.data as PlanResponse),
     onSuccess: (data) => { setPlan(data); setError(''); setDisabled(new Set()); setQtyOverride({}); setSubmittedIds([]) },
@@ -742,10 +786,15 @@ function AutoPlanTab() {
       const drafts = await api.post('/supply/build', { signals }).then(r => r.data.data as any[])
       const group = drafts[0]
       if (!group) throw new Error('Пустой черновик от /supply/build')
+      // Объединяем упакованные и отложенные позиции — box_type_id необязателен
+      const packed = (group.cargoes ?? []).map((c: any) => ({ sku_id: c.sku_id, box_type_id: c.box_type_id ?? null, qty: c.qty }))
+      const deferred = (group.deferred ?? []).map((c: any) => ({ sku_id: c.sku_id, box_type_id: null, qty: c.qty }))
+      const allCargoes = [...packed, ...deferred]
+      if (allCargoes.length === 0) throw new Error('Нет позиций для отправки')
       const res = await api.post('/supply/submit', {
         cluster_id: group.cluster_id,
         ship_by_date: group.ship_by_date,
-        cargoes: group.cargoes.map((c: any) => ({ sku_id: c.sku_id, box_type_id: c.box_type_id, qty: c.qty })),
+        cargoes: allCargoes,
       }).then(r => r.data.data)
       return res.id as number
     },
@@ -795,13 +844,13 @@ function AutoPlanTab() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="flex flex-col gap-1.5">
             <Label className="text-xs">Покрытие: <strong>{days} дн</strong></Label>
-            <input type="range" min={21} max={28} step={1} value={days} onChange={e => setDays(Number(e.target.value))} className="w-full" />
-            <div className="flex justify-between text-[10px] text-muted-foreground"><span>21</span><span>28</span></div>
+            <input type="range" min={7} max={28} step={1} value={days} onChange={e => setDays(Number(e.target.value))} className="w-full" />
+            <div className="flex justify-between text-[10px] text-muted-foreground"><span>7</span><span>28</span></div>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label className="text-xs">Макс. кластеров: <strong>{maxClusters}</strong></Label>
-            <input type="range" min={3} max={5} step={1} value={maxClusters} onChange={e => setMaxClusters(Number(e.target.value))} className="w-full" />
-            <div className="flex justify-between text-[10px] text-muted-foreground"><span>3</span><span>5</span></div>
+            <input type="range" min={1} max={5} step={1} value={maxClusters} onChange={e => setMaxClusters(Number(e.target.value))} className="w-full" />
+            <div className="flex justify-between text-[10px] text-muted-foreground"><span>1</span><span>5</span></div>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label className="text-xs">Мин. покрытие SKU, %</Label>
@@ -811,23 +860,53 @@ function AutoPlanTab() {
             <Label className="text-xs">Мин. прибыль с поставки, ₽</Label>
             <Input type="number" min={0} step={500} value={minProfitRub} onChange={e => setMinProfitRub(Number(e.target.value))} className="h-9" />
           </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Мин. кол-во, шт.</Label>
+            <Input type="number" min={1} step={1} value={minQty} onChange={e => setMinQty(Number(e.target.value))} className="h-9" />
+          </div>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">Приоритетные кластеры (всегда в плане, все SKU из пула)</Label>
+          <Input
+            placeholder="Поиск склада..."
+            value={clusterSearch}
+            onChange={e => setClusterSearch(e.target.value)}
+            className="h-8 text-xs max-w-64"
+          />
           <div className="flex flex-wrap gap-2">
             {allClusters.length === 0 && <p className="text-xs text-muted-foreground">Загрузка...</p>}
-            {allClusters.map(c => {
-              const active = priorityClusterIds.includes(c.id)
-              return (
-                <button
-                  key={c.id} type="button"
-                  onClick={() => setPriorityClusterIds(prev => prev.includes(c.id) ? prev.filter(x => x !== c.id) : [...prev, c.id])}
-                  className={`rounded-md border px-3 py-1 text-xs transition-colors ${active ? 'bg-amber-100 border-amber-400 text-amber-900' : 'bg-background hover:bg-accent'}`}
-                >
-                  {active && '⭐ '}{c.name}
-                </button>
+            {allClusters
+              .filter(c =>
+                priorityClusterIds.includes(c.id) ||
+                (clusterSearch.length > 0 && c.name.toLowerCase().includes(clusterSearch.toLowerCase()))
               )
-            })}
+              .map(c => {
+                const active = priorityClusterIds.includes(c.id)
+                return (
+                  <button
+                    key={c.id} type="button"
+                    onClick={() => setPriorityClusterIds(prev => {
+                      const next = prev.includes(c.id) ? prev.filter(x => x !== c.id) : [...prev, c.id]
+                      localStorage.setItem('supply_priority_clusters', JSON.stringify(next))
+                      return next
+                    })}
+                    className={`rounded-md border px-3 py-1 text-xs transition-colors ${active ? 'bg-amber-100 border-amber-400 text-amber-900' : 'bg-background hover:bg-accent'}`}
+                  >
+                    {active && '⭐ '}{c.name}
+                  </button>
+                )
+              })}
+            {clusterSearch.length > 0 &&
+              allClusters.filter(c =>
+                !priorityClusterIds.includes(c.id) &&
+                c.name.toLowerCase().includes(clusterSearch.toLowerCase())
+              ).length === 0 &&
+              allClusters.filter(c => !priorityClusterIds.includes(c.id)).length > 0 && (
+              <p className="text-xs text-muted-foreground">Ничего не найдено</p>
+            )}
+            {priorityClusterIds.length === 0 && clusterSearch.length === 0 && (
+              <p className="text-xs text-muted-foreground">Начните вводить название склада для поиска</p>
+            )}
           </div>
           {priorityClusterIds.length > 0 && (
             <p className="text-[10px] text-muted-foreground">
@@ -899,7 +978,7 @@ function AutoPlanTab() {
                         {cluster.is_priority && <Badge variant="warning" className="text-[10px]">Приоритет</Badge>}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Lead time {cluster.lead_time_days} дн · Отгрузить до {fmtDate(cluster.ship_by_date)}
+                        Lead time {cluster.lead_time_days} дн{cluster.ship_by_date ? ` · Отгрузить до ${fmtDate(cluster.ship_by_date)}` : ' · Запасов достаточно'}
                       </p>
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         <Badge variant="outline" className="text-[10px]">
@@ -938,7 +1017,10 @@ function AutoPlanTab() {
                     </Button>
                   </div>
                 </div>
-                <Table>
+                {cluster.skus.length === 0 && (
+                  <div className="px-5 py-4 text-sm text-muted-foreground">Все позиции достаточно обеспечены — везти ничего не нужно.</div>
+                )}
+                {cluster.skus.length > 0 && <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-10"></TableHead>
@@ -996,12 +1078,271 @@ function AutoPlanTab() {
                       )
                     })}
                   </TableBody>
-                </Table>
+                </Table>}
               </div>
             )
           })}
         </>
       )}
+    </div>
+  )
+}
+
+// ─── Manual Supply Form ──────────────────────────────────────────────────────
+
+function ManualSupplyDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [clusterId, setClusterId] = useState<number | ''>('')
+  const [note, setNote] = useState('')
+  const [shipDate, setShipDate] = useState('')
+  const [items, setItems] = useState([{ sku_id: '' as number | '', qty: 1 }])
+  const [error, setError] = useState('')
+
+  const { data: skusData } = useQuery({
+    queryKey: ['skus', 'all-active'],
+    queryFn: () => api.get('/skus', { params: { per_page: 200, status: 'ACTIVE' } }).then(r => r.data.data as Sku[]),
+  })
+  const { data: clustersData } = useQuery({
+    queryKey: ['clusters'],
+    queryFn: () => api.get('/reference/clusters').then(r => r.data.data as Cluster[]),
+  })
+
+  const skus = skusData ?? []
+  const clusters = (clustersData ?? []).filter((c: Cluster) => c.name !== 'Не указан')
+
+  const createMutation = useMutation({
+    mutationFn: () => api.post('/supply/manual', {
+      cluster_id: clusterId,
+      ship_by_date: shipDate || null,
+      note: note || null,
+      items: items.filter(i => i.sku_id !== '' && i.qty > 0).map(i => ({ sku_id: i.sku_id, qty: i.qty })),
+    }),
+    onSuccess: () => { onCreated(); onClose() },
+    onError: (e: any) => setError(e.response?.data?.message ?? JSON.stringify(e.response?.data?.errors ?? 'Ошибка')),
+  })
+
+  function updateItem(i: number, field: 'sku_id' | 'qty', val: any) {
+    setItems(prev => prev.map((item, idx) => idx === i ? { ...item, [field]: val } : item))
+  }
+
+  const validItems = items.filter(i => i.sku_id !== '' && i.qty > 0)
+
+  return (
+    <Dialog open onClose={onClose}>
+      <DialogHeader>
+        <DialogTitle>Ручная поставка</DialogTitle>
+        <DialogClose onClose={onClose} />
+      </DialogHeader>
+      <DialogContent>
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs">Кластер / склад</Label>
+              <Select value={clusterId} onChange={e => setClusterId(e.target.value ? Number(e.target.value) : '')}>
+                <option value="">— выберите —</option>
+                {clusters.map((c: Cluster) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs">Дата сдачи</Label>
+              <Input type="date" value={shipDate} onChange={e => setShipDate(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Заметка (номер заявки, транспорт и т.п.)</Label>
+            <Input placeholder="Опционально" value={note} onChange={e => setNote(e.target.value)} />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Состав поставки</Label>
+              <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs"
+                onClick={() => setItems(p => [...p, { sku_id: '', qty: 1 }])}>
+                <Plus className="size-3" /> Строка
+              </Button>
+            </div>
+            {items.map((item, i) => (
+              <div key={i} className="grid grid-cols-12 gap-2 items-end">
+                <div className="col-span-8 flex flex-col gap-1">
+                  {i === 0 && <Label className="text-xs">SKU</Label>}
+                  <Select value={item.sku_id} onChange={e => updateItem(i, 'sku_id', e.target.value ? Number(e.target.value) : '')}>
+                    <option value="">—</option>
+                    {skus.map((s: Sku) => <option key={s.id} value={s.id}>{s.article} — {s.name}</option>)}
+                  </Select>
+                </div>
+                <div className="col-span-3 flex flex-col gap-1">
+                  {i === 0 && <Label className="text-xs">Кол-во</Label>}
+                  <Input type="number" min={1} value={item.qty} onChange={e => updateItem(i, 'qty', Number(e.target.value))} />
+                </div>
+                <div className="col-span-1 flex">
+                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive"
+                    disabled={items.length === 1}
+                    onClick={() => setItems(p => p.filter((_, idx) => idx !== i))}>
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <AlertTriangle className="size-3.5 shrink-0" /> {error}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose}>Отмена</Button>
+        <Button
+          onClick={() => createMutation.mutate()}
+          disabled={createMutation.isPending || !clusterId || validItems.length === 0}
+          className="gap-1.5"
+        >
+          <Send className="size-3.5" />
+          {createMutation.isPending ? 'Сохранение...' : 'Создать поставку'}
+        </Button>
+      </DialogFooter>
+    </Dialog>
+  )
+}
+
+// ─── In-Transit Tab ─────────────────────────────────────────────────────────
+
+function InTransitTab() {
+  const queryClient = useQueryClient()
+  const [showCreate, setShowCreate] = useState(false)
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['supply-in-transit'],
+    queryFn: () => api.get('/supply/in-transit').then(r => r.data),
+    refetchInterval: 60_000,
+  })
+
+  const { data: manualData, isLoading: manualLoading } = useQuery({
+    queryKey: ['supplies-manual'],
+    queryFn: () => api.get('/supplies', { params: { channel: 'MANUAL', per_page: 50 } }).then(r => r.data.data),
+    refetchInterval: 30_000,
+  })
+
+  const syncMutation = useMutation({
+    mutationFn: () => api.post('/supply/sync-stocks'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supply-in-transit'] })
+      queryClient.invalidateQueries({ queryKey: ['supplies-manual'] })
+    },
+  })
+
+  const manualSupplies: Supply[] = manualData ?? []
+
+  const rows: any[] = data?.data ?? []
+  const syncedAt: string | null = data?.synced_at ?? null
+
+  const syncedLabel = syncedAt
+    ? new Date(syncedAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : null
+
+  // группируем по кластеру
+  const byCluster = rows.reduce<Record<string, any[]>>((acc, r) => {
+    const key = r.cluster_name ?? 'Неизвестный склад'
+    ;(acc[key] ??= []).push(r)
+    return acc
+  }, {})
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          Товары в пути на склады Ozon по данным снэпшота остатков.
+          {syncedLabel && <span className="ml-1">Синк: <strong>{syncedLabel}</strong></span>}
+        </p>
+          <div className="flex gap-2 shrink-0">
+          <Button size="sm" variant="outline"
+            onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}
+            className="gap-1.5">
+            <RefreshCw className={`size-3.5 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
+            {syncMutation.isPending ? 'Синхронизация...' : 'Синхронизировать'}
+          </Button>
+          <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1.5">
+            <Plus className="size-3.5" /> Внести поставку
+          </Button>
+        </div>
+      </div>
+
+      {showCreate && (
+        <ManualSupplyDialog
+          onClose={() => setShowCreate(false)}
+          onCreated={() => {
+            queryClient.invalidateQueries({ queryKey: ['supplies-manual'] })
+            queryClient.invalidateQueries({ queryKey: ['supply-in-transit'] })
+          }}
+        />
+      )}
+
+      {/* Ручные поставки */}
+      {(manualLoading || manualSupplies.length > 0) && (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Внесено вручную</p>
+          {manualLoading && <p className="text-sm text-muted-foreground">Загрузка...</p>}
+          {manualSupplies.map(s => (
+            <div key={s.id} className="rounded-xl border bg-card px-4 py-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Badge variant={STATUS_VARIANT[s.status]}>{STATUS_LABEL[s.status]}</Badge>
+                <span className="text-sm font-medium">
+                  {s.status === 'SUBMITTED' ? '⏳' : '✓'} Поставка #{s.id}
+                </span>
+                {s.ship_by_date && <span className="text-xs text-muted-foreground">Сдана {fmtDate(s.ship_by_date)}</span>}
+              </div>
+              <div className="flex items-center gap-3">
+                {(s as any).note && <span className="text-xs text-muted-foreground">{(s as any).note}</span>}
+                {s.status === 'ACCEPTED' && (
+                  <span className="text-xs text-green-600 font-medium">Ozon подтвердил</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isLoading && <p className="text-sm text-muted-foreground py-8 text-center">Загрузка...</p>}
+
+      {!isLoading && rows.length === 0 && (
+        <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
+          Нет товаров в пути. Запустите <code className="bg-muted px-1 rounded">php artisan ozon:sync:stocks</code> для обновления данных.
+        </div>
+      )}
+
+      {Object.entries(byCluster).map(([clusterName, clusterRows]) => {
+        const totalTransit = clusterRows.reduce((s, r) => s + r.transit, 0)
+        return (
+          <div key={clusterName} className="rounded-xl border bg-card">
+            <div className="flex items-center justify-between px-5 py-3 border-b">
+              <p className="font-semibold text-sm">{clusterName}</p>
+              <Badge variant="warning">{totalTransit} шт в пути</Badge>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>SKU</TableHead>
+                  <TableHead className="text-right">В пути</TableHead>
+                  <TableHead className="text-right">Доступно</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {clusterRows.map((r, i) => (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <p className="font-medium text-sm">{r.article ?? `ozon:${r.ozon_sku_id}`}</p>
+                      {r.name && <p className="text-xs text-muted-foreground line-clamp-1">{r.name}</p>}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold text-amber-700">{r.transit}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{r.available}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -1021,14 +1362,12 @@ export default function SupplyPage() {
       <Tabs defaultValue="auto">
         <TabsList>
           <TabsTrigger value="auto">Авто-план</TabsTrigger>
+          <TabsTrigger value="transit">В пути</TabsTrigger>
           <TabsTrigger value="list">Список</TabsTrigger>
-          <TabsTrigger value="demand">Расчёт спроса</TabsTrigger>
-          <TabsTrigger value="build">Построить вручную</TabsTrigger>
         </TabsList>
         <TabsContent value="auto"><AutoPlanTab /></TabsContent>
+        <TabsContent value="transit"><InTransitTab /></TabsContent>
         <TabsContent value="list"><ListTab onOpen={setOpenId} /></TabsContent>
-        <TabsContent value="demand"><DemandTab /></TabsContent>
-        <TabsContent value="build"><BuildTab /></TabsContent>
       </Tabs>
 
       {openId !== null && <SupplyDetailDialog id={openId} onClose={() => setOpenId(null)} />}

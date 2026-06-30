@@ -27,6 +27,7 @@ interface Sku {
   item_volume_cm3: number
   default_cover_days: number
   max_cover_days: number | null
+  units_per_box: number | null
   compatible_printers: number[]
   item_area_cm2: number | null
   print_time_sec: number | null
@@ -324,6 +325,7 @@ function InfoTab({ sku, isOwner }: { sku: Sku; isOwner: boolean }) {
     print_time_sec: sku.print_time_sec,
     default_cover_days: sku.default_cover_days,
     max_cover_days: sku.max_cover_days,
+    units_per_box: sku.units_per_box,
     compatible_printers: sku.compatible_printers ?? [],
   })
   const [error, setError] = useState('')
@@ -428,6 +430,16 @@ function InfoTab({ sku, isOwner }: { sku: Sku; isOwner: boolean }) {
               value={form.max_cover_days ?? ''}
               onChange={e => setForm(f => ({ ...f, max_cover_days: e.target.value ? Number(e.target.value) : null }))}
               placeholder="без ограничения"
+              disabled={!isOwner}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>Шт. в коробке</Label>
+            <Input
+              type="number" min={1}
+              value={form.units_per_box ?? ''}
+              onChange={e => setForm(f => ({ ...f, units_per_box: e.target.value ? Number(e.target.value) : null }))}
+              placeholder="без округления"
               disabled={!isOwner}
             />
           </div>
