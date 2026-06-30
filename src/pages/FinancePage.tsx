@@ -806,7 +806,7 @@ export default function FinancePage() {
             </div>
 
             <div className="col-span-2 flex flex-col gap-2">
-              {saleForm.items.map((item, idx) => (
+              {saleForm.items.map((item) => (
                 <div key={item.uid} className="rounded-lg border bg-muted/20 p-3 flex flex-col gap-2">
                   {/* Переключатель типа */}
                   <div className="flex items-center gap-2">

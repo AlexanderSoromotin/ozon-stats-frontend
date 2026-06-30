@@ -42,7 +42,7 @@ const emptySignal = (): Signal => ({ sku_id: '', cluster_id: '', need_qty: 0, sh
 
 // ─── Build Tab ───────────────────────────────────────────────────────────────
 
-function BuildTab() {
+function _BuildTab() {
   const [signals, setSignals] = useState<Signal[]>([emptySignal()])
   const [drafts, setDrafts] = useState<DraftGroup[] | null>(null)
   const [error, setError] = useState('')
@@ -458,7 +458,7 @@ interface DemandRow {
   criticality_days: number
 }
 
-function DemandTab() {
+function _DemandTab() {
   const [skuId, setSkuId] = useState<number | ''>('')
   const [clusterIds, setClusterIds] = useState<number[]>([])
   const [demand, setDemand] = useState<DemandRow[] | null>(null)

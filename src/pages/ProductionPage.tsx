@@ -236,7 +236,7 @@ export default function ProductionPage() {
     onError: (e: any) => setActionError(e.response?.data?.message ?? 'Ошибка'),
   })
 
-  function startPrint(id: number) {
+  function _startPrint(id: number) {
     setActionError('')
     api.post(`/print-jobs/${id}/start`)
       .then(() => qc.invalidateQueries({ queryKey: ['shift-tasks'] }))
@@ -769,7 +769,7 @@ export default function ProductionPage() {
       </Dialog>
 
       {/* Итоги закрытия смены */}
-      <Dialog open={!!closeResult} onOpenChange={() => setCloseResult(null)}>
+      <Dialog open={!!closeResult} onClose={() => setCloseResult(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Смена закрыта</DialogTitle></DialogHeader>
           {closeResult && (
