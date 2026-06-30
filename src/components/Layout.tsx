@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import SettingsDialog from '@/components/SettingsDialog'
 import {
   Package,
   Factory,
@@ -16,8 +17,6 @@ import {
   Printer,
   Box,
   Users,
-  Download,
-  Upload,
 } from 'lucide-react'
 
 const navItems = [
@@ -117,26 +116,14 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
-        {isOwner && (
-          <div className="px-3 py-2 border-t border-border/60 flex flex-col gap-0.5">
-            <Button variant="ghost" size="sm" className="w-full justify-start gap-2.5 text-muted-foreground hover:text-foreground" onClick={handleExport} disabled={exporting}>
-              <Download className="size-4" />
-              {exporting ? 'Экспорт...' : 'Экспорт настроек'}
-            </Button>
-            <Button variant="ghost" size="sm" className="w-full justify-start gap-2.5 text-muted-foreground hover:text-foreground" onClick={() => fileInputRef.current?.click()} disabled={importing}>
-              <Upload className="size-4" />
-              {importing ? 'Импорт...' : 'Импорт настроек'}
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".json"
-              className="hidden"
-              onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f) }}
-            />
-          </div>
-        )}
-        <div className="px-3 py-2 border-t border-border/60">
+        <div className="px-3 py-2 border-t border-border/60 flex flex-col gap-0.5">
+          <SettingsDialog
+            isOwner={!!isOwner}
+            onExport={handleExport}
+            onImport={handleImport}
+            exporting={exporting}
+            importing={importing}
+          />
           <Button variant="ghost" size="sm" className="w-full justify-start gap-2.5 text-muted-foreground hover:text-foreground" onClick={handleLogout}>
             <LogOut className="size-4" />
             Выйти
