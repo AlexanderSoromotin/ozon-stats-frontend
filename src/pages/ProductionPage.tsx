@@ -236,13 +236,6 @@ export default function ProductionPage() {
     onError: (e: any) => setActionError(e.response?.data?.message ?? 'Ошибка'),
   })
 
-  function _startPrint(id: number) {
-    setActionError('')
-    api.post(`/print-jobs/${id}/start`)
-      .then(() => qc.invalidateQueries({ queryKey: ['shift-tasks'] }))
-      .catch((e) => setActionError(e.response?.data?.message ?? 'Ошибка'))
-  }
-
   function cancelPrint(id: number) {
     setActionError('')
     api.post(`/print-jobs/${id}/cancel`)
